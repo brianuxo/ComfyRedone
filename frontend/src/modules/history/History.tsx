@@ -35,9 +35,12 @@ export function History({ onLoadImage }: HistoryProps) {
   const fetchTasks = useCallback(async () => {
     try {
       const data = await api.listTasks();
+      console.log("[History] Raw API data:", data.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at, status: d.status, has_image: d.has_image })));
       const completedTasks = data.filter((t) => t.status === "completed" && t.has_image);
+      console.log("[History] Filtered completed:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       // Ordenar por fecha más reciente primero (created_at descendente)
       completedTasks.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+      console.log("[History] Sorted:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       setTasks(completedTasks);
       await Promise.all(
         completedTasks.map(async (task) => {
@@ -203,6 +206,10 @@ return (
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
                     {formatDate(task.created_at)}
+                  </div>
+                  {/* Debug: show raw timestamp */}
+                  <div className="mt-1 text-[9px] text-slate-400 font-mono">
+                    ts: {task.created_at}
                   </div>
                 </div>
               </div>
