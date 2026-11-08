@@ -33,6 +33,22 @@ export const api = {
       { method: "POST", body: JSON.stringify({ image_b64: imageB64 }) }
     ),
 
+  /** Lanzar una tarea FIBO 2.0 Txt2Img (generación desde cero) → sube a OCI queue/pending */
+  createTxt2ImgTask: (body: {
+    prompt: string;
+    negative_prompt?: string;
+    loras?: string[];
+    seed?: number;
+    steps?: number;
+    scheduler?: string;
+    guidance?: number;
+    width?: number;
+    height?: number;
+  }) => request<{ task_id: string; status: string; created_at: string }>(
+    "/tasks/txt2img",
+    { method: "POST", body: JSON.stringify(body) }
+  ),
+
   /** Lanzar una tarea FIBO 2.0 Edit → sube a OCI queue/pending */
   createTask: (body: {
     prompt: string;

@@ -23,9 +23,10 @@ interface Fibo2EditFormProps {
   onParamsChange: (params: Fibo2EditParams | ((prev: Fibo2EditParams) => Fibo2EditParams)) => void;
   imageB64?: string;
   params: Fibo2EditParams;
+  isTxt2Img?: boolean;
 }
 
-export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFormProps) {
+export function Fibo2EditForm({ onParamsChange, imageB64, params, isTxt2Img = false }: Fibo2EditFormProps) {
   // Sincronizar imagen entrante cuando cambia (solo image_b64, no todo params)
   useEffect(() => {
     if (imageB64) {
@@ -239,7 +240,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFor
           <li>Prompt: <span className="font-mono truncate block">{params.prompt || "—"}</span></li>
           <li>Prompt Negativo: <span className="font-mono truncate block">{params.negative_prompt || "—"}</span></li>
           <li>
-            Imagen de entrada:{params.image_b64 ? " ✅ cargada" : " ❌ ninguna"}
+            Imagen de entrada:{isTxt2Img ? " ❌ no requerida (txt2img)" : params.image_b64 ? " ✅ cargada" : " ❌ ninguna"}
           </li>
           <li>LoRAs: {params.loras.length > 0 ? params.loras.join(", ") : "ninguna"}</li>
           <li>Seed: {params.seed ?? "aleatorio"}</li>

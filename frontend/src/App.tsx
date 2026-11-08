@@ -44,6 +44,7 @@ export default function App() {
   const workerOnline = health?.online ?? false;
   const [page, setPage] = useState<Page>("home");
   const [imageB64, setImageB64] = useState<string | null>(null);
+  const [isTxt2Img, setIsTxt2Img] = useState(false);
   const [params, setParams] = useState<Fibo2EditParams>({
     prompt: "",
     negative_prompt: "",
@@ -89,9 +90,33 @@ export default function App() {
   const handleLoadHistoryImage = useCallback((imageB64: string, taskId: string) => {
     console.log("Loading history image:", taskId);
     setImageB64(imageB64);
+    setIsTxt2Img(false);
     // NO recalculamos dimensiones: la imagen del historial ya tiene dimensiones FIBO correctas
-    // Solo actualizamos params con la imagen para que el formulario sepa que hay imagen
     setParams((prev) => ({ ...prev, image_b64: imageB64 }));
+  }, []);
+
+  // Aplicar parámetros reutilizados desde historial
+  const handleApplyReuseTask = useCallback((taskData: any) => {
+    console.log("Applying reuse task:", taskData);
+    setParams((prev) => ({
+      ...prev,
+      prompt: taskData.prompt || "",
+      negative_prompt: taskData.negative_prompt || "",
+      steps: taskData.steps ?? prev.steps,
+      scheduler: taskData.scheduler ?? prev.scheduler,
+      guidance: taskData.guidance ?? prev.guidance,
+      width: taskData.width ?? prev.width,
+      height: taskData.height ?? prev.height,
+      loras: taskData.loras ?? prev.loras,
+      seed: taskData.seed ?? prev.seed,
+    }));
+    if (taskData.image_b64) {
+      setImageB64(taskData.image_b64);
+      setIsTxt2Img(false);
+    } else {
+      setIsTxt2Img(true);
+    }
+    setPage("execution");
   }, []);
 
   return (
@@ -160,11 +185,12 @@ export default function App() {
               />
             </div>
             <div className="lg:col-span-2 space-y-8">
-              <ImageUpload onImageReady={handleImageReady} imageB64={imageB64} />
+              <ImageUpload onImageReady={handleImageReady} imageB64={imageB64} isTxt2Img={isTxt2Img} />
               <Fibo2EditForm
                 imageB64={imageB64 ?? undefined}
                 params={params}
                 onParamsChange={setParams}
+                isTxt2Img={isTxt2Img}
               />
               <Execution
                 params={params}
@@ -193,7 +219,7 @@ export default function App() {
                   </p>
                 )}
               </div>
-              <History onLoadImage={handleLoadHistoryImage} />
+              <History onLoadImage={handleLoadHistoryImage} onReuseTask={handleApplyReuseTask} />
             </div>
           </div>
         ) : page === "history" ? (
@@ -204,7 +230,7 @@ export default function App() {
                 {health?.pending_tasks != null && `Tareas pendientes: ${health.pending_tasks}`}
               </span>
             </div>
-            <History />
+            <History onReuseTask={handleApplyReuseTask} />
           </div>
         ) : null}
       </main>

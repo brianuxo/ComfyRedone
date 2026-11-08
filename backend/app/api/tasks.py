@@ -5,6 +5,8 @@ El backend NO se conecta a ComfyUI directamente. Todo fluye a través de OCI:
   - POST /api/tasks  -> sube la tarea a OCI queue/pending/{task_id}.json
   - GET  /api/tasks/{id}  -> lee el estado desde caché local + OCI (queue/processing/, results/, errors/)
   - DELETE /api/tasks/{id} -> marca cancelado en OCI queue/cancelled/{task_id}.json
+  - POST /api/tasks/txt2img  -> crea tarea txt2img (generación desde cero)
+  - POST /api/tasks/edit     -> crea tarea edit (con imagen de entrada)
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from app.workflows.fibo2_edit.oci_payload import (
     result_key,
 )
 from app.workflows.fibo2_edit.schema import Fibo2EditRequest, Fibo2EditResponse
+from app.workflows.fibo2_txt2img.oci_payload import build_oci_payload as build_oci_payload_txt2img
+from app.workflows.fibo2_txt2img.schema import Fibo2Txt2ImgRequest, Fibo2Txt2ImgResponse
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -152,6 +156,53 @@ async def create_task(request: Fibo2EditRequest) -> Any:
     store_module.task_store.update_status(task_id, "queued")
 
     return Fibo2EditResponse(
+        task_id=task_id,
+        status="queued",
+        created_at=payload["created_at"],
+    )
+
+
+@router.post(
+    "/txt2img",
+    response_model=Fibo2Txt2ImgResponse,
+    status_code=201,
+    summary="Lanzar ejecución FIBO 2.0 Txt2Img (generación desde cero)",
+)
+async def create_txt2img_task(request: Fibo2Txt2ImgRequest) -> Fibo2Txt2ImgResponse:
+    """
+    Recibe los parámetros del usuario, construye el workflow JSON de FIBO 2.0 Txt2Img
+    (generación desde cero, SIN imagen de entrada), lo valida y lo sube como objeto
+    a OCI queue/pending/{task_id}.json con mode="txt2img".
+
+    El daemon de ComfyUI en Kaggle/Colab polléa este prefijo, ejecuta el workflow
+    y sube el resultado a OCI results/{task_id}/.
+
+    Nunca se conecta a ComfyUI directamente. Nunca escribe en disco del worker.
+    """
+    _ensure_store()
+
+    task_id_param = getattr(request, "task_id", None) or None
+    payload = build_oci_payload_txt2img(request.dict(), task_id=task_id_param)
+    task_id = payload["task_id"]
+
+    # DEBUG: escribir inputs del nodo 3 a archivo
+    node3_inputs = payload["workflow"]["prompt"].get("3", {}).get("inputs", {})
+    with open(r"C:\Users\brian\Desktop\ALL\Proyectos\RustComfyCrear\debug_task_txt2img.log", "w") as f:
+        f.write(f"task_id={task_id}, nodo3 inputs={node3_inputs}\n")
+        f.write(f"request.dict()={request.dict()}\n")
+
+    # Registrar en almacén local (caché rápido) con el mismo task_id de OCI
+    store_module.task_store.create(payload["workflow"], task_id=task_id)
+
+    # Subir a OCI queue/pending
+    success = oci_client.put_object_json(queue_key(task_id), payload)
+    if not success:
+        store_module.task_store.update_status(task_id, "failed", error="No se pudo subir la tarea a OCI")
+        raise HTTPException(status_code=500, detail="Error subiendo tarea a OCI")
+
+    store_module.task_store.update_status(task_id, "queued")
+
+    return Fibo2Txt2ImgResponse(
         task_id=task_id,
         status="queued",
         created_at=payload["created_at"],
