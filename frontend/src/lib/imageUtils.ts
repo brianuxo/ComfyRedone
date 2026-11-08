@@ -54,14 +54,18 @@ export function getImageDimensions(file: File): Promise<{ width: number; height:
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
+      console.log("getImageDimensions: loaded", { width: img.naturalWidth, height: img.naturalHeight });
       resolve({ width: img.naturalWidth, height: img.naturalHeight });
       URL.revokeObjectURL(img.src);
     };
-    img.onerror = () => {
+    img.onerror = (err) => {
+      console.error("getImageDimensions: error loading image", err);
       URL.revokeObjectURL(img.src);
       reject(new Error('No se pudo cargar la imagen'));
     };
-    img.src = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    console.log("getImageDimensions: created blob URL", url);
+    img.src = url;
   });
 }
 

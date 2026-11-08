@@ -24,31 +24,35 @@ export function ImageUpload({ onImageReady }: ImageUploadProps) {
       setLoading(true);
       try {
         // Obtener dimensiones de la imagen
+        console.log("ImageUpload: Getting dimensions for file:", file.name, file.size, file.type);
         const dimensions = await getImageDimensions(file);
+        console.log("ImageUpload: Got dimensions:", dimensions);
         
         const reader = new FileReader();
         reader.onload = (e) => {
           const b64 = (e.target?.result as string).split(",")[1]; // quitar data URL header
           setPreview(b64 ? `data:image/png;base64,${b64}` : null);
+          console.log("ImageUpload: Calling onImageReady with b64 length:", b64?.length, "dimensions:", dimensions);
           onImageReady(b64, dimensions);
         };
         reader.readAsDataURL(file);
       } catch (error) {
-        console.error("Error leyendo imagen:", error);
-        // Fallback sin dimensiones
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const b64 = (e.target?.result as string).split(",")[1];
-          setPreview(b64 ? `data:image/png;base64,${b64}` : null);
-          onImageReady(b64);
-        };
-        reader.readAsDataURL(file);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+      console.error("Error leyendo imagen:", error);
+      // Fallback sin dimensiones
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const b64 = (e.target?.result as string).split(",")[1];
+        setPreview(b64 ? `data:image/png;base64,${b64}` : null);
+        console.log("ImageUpload: Fallback - calling onImageReady without dimensions");
+        onImageReady(b64);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setLoading(false);
+    }
+  },
+  []
+);
 
   const handleRemove = useCallback(() => {
     setPreview(null);

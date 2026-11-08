@@ -71,9 +71,11 @@ export default function App() {
 
   // Manejar imagen subida con auto-ajuste de dimensiones
   const handleImageReady = useCallback((b64: string, dimensions?: { width: number; height: number }) => {
+    console.log("App.handleImageReady called:", { b64: b64?.length, dimensions });
     setImageB64(b64 || null);
     if (dimensions && b64) {
       const { width, height } = calculateFiboDimensions(dimensions.width, dimensions.height);
+      console.log("App: Calculated FIBO dimensions:", { width, height });
       setParams((prev) => ({ ...prev, width, height }));
     } else if (!b64) {
       // Si se quita la imagen, resetear a defaults
