@@ -139,7 +139,7 @@ export default function App() {
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                Historial
+                Biblioteca
               </button>
             </nav>
             <WorkerStatus />

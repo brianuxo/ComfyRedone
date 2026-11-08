@@ -36,6 +36,8 @@ export function History({ onLoadImage }: HistoryProps) {
     try {
       const data = await api.listTasks();
       const completedTasks = data.filter((t) => t.status === "completed" && t.has_image);
+      // Ordenar por fecha más reciente primero (created_at descendente)
+      completedTasks.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
       setTasks(completedTasks);
       await Promise.all(
         completedTasks.map(async (task) => {
