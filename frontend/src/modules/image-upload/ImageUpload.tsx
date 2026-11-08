@@ -1,23 +1,29 @@
-/**
- * Módulo de subida de imagen.
- * Lee un archivo con FileReader → base64 → preview en pantalla.
- * El base64 se envía al backend al lanzar la ejecución (vía POST /api/tasks).
- * Nunca se guarda en disco del worker; solo viaja en memoria.
- * También extrae las dimensiones de la imagen para auto-ajustar ancho/alto.
- */
-
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Upload } from "lucide-react";
 import { getImageDimensions } from "@/lib/imageUtils";
 
 interface ImageUploadProps {
   onImageReady: (imageB64: string, dimensions?: { width: number; height: number }) => void;
+  imageB64?: string | null;  // Imagen existente para mostrar (persistencia)
 }
 
-export function ImageUpload({ onImageReady }: ImageUploadProps) {
+export function ImageUpload({ onImageReady, imageB64: externalImageB64 }: ImageUploadProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLImageElement>(null);
+
+  // Sincronizar con imagen externa (desde draft/historial)
+  useEffect(() => {
+    if (externalImageB64) {
+      const b64 = externalImageB64.startsWith("data:") 
+        ? externalImageB64.split(",")[1] 
+        : externalImageB64;
+      setPreview(b64 ? `data:image/png;base64,${b64}` : null);
+    } else {
+      setPreview(null);
+    }
+  }, [externalImageB64]);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -37,22 +43,22 @@ export function ImageUpload({ onImageReady }: ImageUploadProps) {
         };
         reader.readAsDataURL(file);
       } catch (error) {
-      console.error("Error leyendo imagen:", error);
-      // Fallback sin dimensiones
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const b64 = (e.target?.result as string).split(",")[1];
-        setPreview(b64 ? `data:image/png;base64,${b64}` : null);
-        console.log("ImageUpload: Fallback - calling onImageReady without dimensions");
-        onImageReady(b64);
-      };
-      reader.readAsDataURL(file);
-    } finally {
-      setLoading(false);
-    }
-  },
-  []
-);
+        console.error("Error leyendo imagen:", error);
+        // Fallback sin dimensiones
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const b64 = (e.target?.result as string).split(",")[1];
+          setPreview(b64 ? `data:image/png;base64,${b64}` : null);
+          console.log("ImageUpload: Fallback - calling onImageReady without dimensions");
+          onImageReady(b64);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onImageReady]
+  );
 
   const handleRemove = useCallback(() => {
     setPreview(null);
@@ -69,6 +75,7 @@ export function ImageUpload({ onImageReady }: ImageUploadProps) {
         {preview ? (
           <>
             <img
+              ref={previewRef}
               src={preview}
               alt="Preview"
               className="max-w-64 max-h-64 rounded-lg object-contain border border-slate-200 shadow-sm bg-slate-50"

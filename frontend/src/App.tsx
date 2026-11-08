@@ -89,14 +89,9 @@ export default function App() {
   const handleLoadHistoryImage = useCallback((imageB64: string, taskId: string) => {
     console.log("Loading history image:", taskId);
     setImageB64(imageB64);
-    // Las dimensiones se ajustarán automáticamente en handleImageReady
-    // Pero necesitamos obtener las dimensiones de la imagen
-    const img = new Image();
-    img.onload = () => {
-      const { width, height } = calculateFiboDimensions(img.width, img.height);
-      setParams((prev) => ({ ...prev, width, height }));
-    };
-    img.src = `data:image/png;base64,${imageB64}`;
+    // NO recalculamos dimensiones: la imagen del historial ya tiene dimensiones FIBO correctas
+    // Solo actualizamos params con la imagen para que el formulario sepa que hay imagen
+    setParams((prev) => ({ ...prev, image_b64: imageB64 }));
   }, []);
 
   return (
@@ -165,7 +160,7 @@ export default function App() {
               />
             </div>
             <div className="lg:col-span-2 space-y-8">
-              <ImageUpload onImageReady={handleImageReady} />
+              <ImageUpload onImageReady={handleImageReady} imageB64={imageB64} />
               <Fibo2EditForm
                 imageB64={imageB64 ?? undefined}
                 params={params}
