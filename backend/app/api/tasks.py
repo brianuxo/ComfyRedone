@@ -313,4 +313,7 @@ async def list_tasks() -> List[Dict[str, Any]]:
             # Si falla la consulta a OCI, solo devolver caché local
             pass
 
+    # Ordenar resultado final por fecha descendente (más reciente primero)
+    result.sort(key=lambda x: x.get("created_at", 0) or 0, reverse=True)
+
     return result
