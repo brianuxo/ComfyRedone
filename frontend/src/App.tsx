@@ -85,6 +85,20 @@ export default function App() {
     }
   }, []);
 
+  // Manejar carga de imagen desde historial
+  const handleLoadHistoryImage = useCallback((imageB64: string, taskId: string) => {
+    console.log("Loading history image:", taskId);
+    setImageB64(imageB64);
+    // Las dimensiones se ajustarán automáticamente en handleImageReady
+    // Pero necesitamos obtener las dimensiones de la imagen
+    const img = new Image();
+    img.onload = () => {
+      const { width, height } = calculateFiboDimensions(img.width, img.height);
+      setParams((prev) => ({ ...prev, width, height }));
+    };
+    img.src = `data:image/png;base64,${imageB64}`;
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-50">
@@ -184,7 +198,7 @@ export default function App() {
                   </p>
                 )}
               </div>
-              <History />
+              <History onLoadImage={handleLoadHistoryImage} />
             </div>
           </div>
         ) : page === "history" ? (

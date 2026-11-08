@@ -1,38 +1,70 @@
 /**
- * Historial de tareas recientes con vista previa de imágenes desde OCI.
+ * Historial de tareas recientes con vista de galería de imágenes desde OCI.
+ * Muestra imágenes completadas en grid 3 columnas con numeración.
+ * Click en imagen carga la imagen en el formulario principal.
  */
 
-import { useEffect, useState } from "react";
-import { Clock, Image as ImageIcon, Eye, Download } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Clock, Image as ImageIcon, Eye, Download, RotateCcw } from "lucide-react";
 import { api } from "@/services/api";
 
-export function History() {
-  const [tasks, setTasks] = useState<
-    Array<{
-      task_id: string;
-      status: string;
-      created_at: number;
-      updated_at: number;
-      has_image: boolean;
-      error?: string;
-      source?: string;
-    }>
-  >([]);
+interface HistoryTask {
+  task_id: string;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  has_image: boolean;
+  error?: string;
+  source?: string;
+  image_b64?: string;
+}
+
+interface HistoryProps {
+  onLoadImage?: (imageB64: string, taskId: string) => void;
+}
+
+export function History({ onLoadImage }: HistoryProps) {
+  const [tasks, setTasks] = useState<HistoryTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewTask, setPreviewTask] = useState<{
     task_id: string;
     image_b64: string;
   } | null>(null);
+  const [imageCache, setImageCache] = useState<Record<string, string>>({});
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const data = await api.listTasks();
+      const completedTasks = data.filter((t) => t.status === "completed" && t.has_image);
+      setTasks(completedTasks);
+      await Promise.all(
+        completedTasks.map(async (task) => {
+          if (!imageCache[task.task_id]) {
+            try {
+              const taskData = await api.getTask(task.task_id);
+              if (taskData.image_b64) {
+                setImageCache((prev) => ({ ...prev, [task.task_id]: taskData.image_b64! }));
+              }
+            } catch (err) {
+              console.error(`Error loading image for ${task.task_id}:`, err);
+            }
+          }
+        })
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [imageCache]);
 
   useEffect(() => {
-    api.listTasks().then(setTasks).finally(() => setLoading(false));
-  }, []);
-
-  const handlePreview = async (taskId: string) => {
+    fetchTasks();
+  }, [fetchTasks]);
+const handlePreview = async (taskId: string) => {
     try {
       const task = await api.getTask(taskId);
       if (task.image_b64) {
         setPreviewTask({ task_id: taskId, image_b64: task.image_b64 });
+        setImageCache((prev) => ({ ...prev, [taskId]: task.image_b64! }));
       }
     } catch (err) {
       console.error("Error fetching image:", err);
@@ -44,6 +76,22 @@ export function History() {
     link.href = `data:image/png;base64,${imageB64}`;
     link.download = `fibo2-edit-${taskId.slice(0, 8)}.png`;
     link.click();
+  };
+
+  const handleLoadToForm = (taskId: string, imageB64: string) => {
+    if (onLoadImage) {
+      onLoadImage(imageB64, taskId);
+    }
+  };
+
+  const formatDate = (ts: number) => {
+    return new Date(ts).toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   if (loading) {
@@ -59,97 +107,107 @@ export function History() {
     return (
       <div className="text-center py-8 text-slate-500">
         <ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No hay tareas recientes.</p>
+        <p className="text-sm">No hay tareas completadas con imágenes.</p>
       </div>
     );
   }
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <Clock className="w-5 h-5 text-slate-500" />
-        <h3 className="text-lg font-semibold text-slate-900">Historial de tareas</h3>
+return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-slate-500" />
+          <h3 className="text-lg font-semibold text-slate-900">Historial de imágenes</h3>
+        </div>
+        <button
+          onClick={fetchTasks}
+          disabled={loading}
+          className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 flex items-center gap-1"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Actualizar
+        </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs text-slate-500 uppercase">
-              <th className="pb-3 pr-4">ID</th>
-              <th className="pb-3">Estado</th>
-              <th className="pb-3">Creada</th>
-              <th className="pb-3">Origen</th>
-              <th className="pb-3">Imagen</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {tasks.map((t) => (
-              <tr key={t.task_id} className="hover:bg-slate-50 cursor-pointer">
-                <td className="py-3 pr-4 font-mono text-xs text-slate-600">
-                  {t.task_id.slice(0, 8)}…
-                </td>
-                <td className="py-3">
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      t.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : t.status === "failed"
-                        ? "bg-red-100 text-red-700"
-                        : t.status === "running"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {t.status}
-                  </span>
-                </td>
-                <td className="py-3 text-xs text-slate-600">
-                  {new Date(t.created_at * 1000).toLocaleString()}
-                </td>
-                <td className="py-3 text-xs text-slate-500">
-                  {t.source === "oci_results" ? (
-                    <span className="text-green-600">☁️ OCI</span>
-                  ) : t.source === "oci_processing" ? (
-                    <span className="text-blue-600">⚙️ Procesando</span>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-3 gap-3">
+          {tasks.map((task, index) => {
+            const imageB64 = imageCache[task.task_id];
+            const hasImage = !!imageB64;
+            return (
+              <div
+                key={task.task_id}
+                className="group relative rounded-lg border border-slate-200 bg-slate-50 overflow-hidden hover:border-indigo-300 hover:bg-white transition cursor-pointer"
+                onClick={() => hasImage && handleLoadToForm(task.task_id, imageB64!)}
+              >
+                <div className="absolute top-2 left-2 z-10 bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                  {index + 1}
+                </div>
+
+                <div className="aspect-square relative overflow-hidden bg-slate-100">
+                  {hasImage ? (
+                    <img
+                      src={`data:image/png;base64,${imageB64}`}
+                      alt={`Resultado ${task.task_id.slice(0, 8)}`}
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      loading="lazy"
+                    />
                   ) : (
-                    <span className="text-slate-600">💾 Caché</span>
-                  )}
-                </td>
-                <td className="py-3 text-xs text-slate-600">
-                  {t.has_image ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePreview(t.task_id);
-                        }}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition"
-                        title="Ver imagen"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Para descargar necesitaríamos fetch la imagen
-                          handlePreview(t.task_id);
-                        }}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition"
-                        title="Descargar"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
+                    <div className="w-full h-full flex items-center justify-center text-slate-400">
+                      <ImageIcon className="w-8 h-8" />
                     </div>
-                  ) : (
-                    "—"
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {hasImage && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview(task.task_id);
+                          }}
+                          className="p-2 rounded-full bg-white/90 text-slate-700 hover:bg-white shadow-lg"
+                          title="Ver en grande"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(task.task_id, imageB64!);
+                          }}
+                          className="p-2 rounded-full bg-white/90 text-slate-700 hover:bg-white shadow-lg"
+                          title="Descargar"
+                        >
+                          <Download className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-      {/* Modal de vista previa */}
+                <div className="p-3 bg-white/50 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-600">{task.task_id.slice(0, 8)}...</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        task.status === "completed"
+                          ? "bg-green-100 text-green-700"
+                          : task.status === "failed"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {task.status}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {formatDate(task.created_at)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       {previewTask && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -157,12 +215,12 @@ export function History() {
         >
           <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-slate-900">Resultado: {previewTask.task_id.slice(0, 8)}…</h3>
+              <h3 className="font-semibold text-slate-900">Resultado: {previewTask.task_id.slice(0, 8)}...</h3>
               <button
                 onClick={() => setPreviewTask(null)}
                 className="p-2 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700"
               >
-                ✕
+                X
               </button>
             </div>
             <div className="p-4">
