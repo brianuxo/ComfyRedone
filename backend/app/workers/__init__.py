@@ -1,0 +1,1 @@
+"""Workers del backend: salud de ComfyUI, gestión de procesos, heartbeat."""

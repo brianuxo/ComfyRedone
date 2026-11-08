@@ -1,0 +1,1 @@
+"""Almacén en memoria de tareas y resultados."""

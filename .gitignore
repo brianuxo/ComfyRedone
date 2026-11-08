@@ -1,0 +1,40 @@
+# Environment
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+venv/
+env/
+.env
+
+# Logs
+*.log
+debug_*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Testing
+.playwright-mcp/
+*.png
+!frontend/public/*.png
+
+# Temporary files
+*.tmp
+*.temp
