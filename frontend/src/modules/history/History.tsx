@@ -39,15 +39,16 @@ export function History({ onLoadImage }: HistoryProps) {
       const completedTasks = data.filter((t) => t.status === "completed" && t.has_image);
       console.log("[History] Filtered completed:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       // Ordenar por fecha más reciente primero (created_at descendente)
-      completedTasks.sort((a, b) => {
+      // IMPORTANTE: crear nuevo array para que React detecte el cambio
+      const sortedTasks = [...completedTasks].sort((a, b) => {
         const aTs = Number(a.created_at) || 0;
         const bTs = Number(b.created_at) || 0;
         const diff = bTs - aTs; // descendente: más reciente primero
         console.log(`[History] Sort compare: a=${a.task_id.slice(0,8)}(${aTs}) b=${b.task_id.slice(0,8)}(${bTs}) diff=${diff}`);
         return diff;
       });
-      console.log("[History] Sorted array (first 5):", completedTasks.slice(0,5).map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
-      setTasks(completedTasks);
+      console.log("[History] Sorted array (first 5):", sortedTasks.slice(0,5).map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
+      setTasks(sortedTasks);
       await Promise.all(
         completedTasks.map(async (task) => {
           if (!imageCache[task.task_id]) {
