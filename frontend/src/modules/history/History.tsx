@@ -59,7 +59,7 @@ export function History({ onLoadImage }: HistoryProps) {
     } finally {
       setLoading(false);
     }
-  }, [imageCache]);
+  }, []);
 
   useEffect(() => {
     fetchTasks();
