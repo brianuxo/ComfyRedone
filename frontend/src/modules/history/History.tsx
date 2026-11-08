@@ -90,7 +90,8 @@ const handlePreview = async (taskId: string) => {
   };
 
   const formatDate = (ts: number) => {
-    return new Date(ts).toLocaleString("es-ES", {
+    // ts viene en segundos (Unix timestamp), Date espera milisegundos
+    return new Date(ts * 1000).toLocaleString("es-ES", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
