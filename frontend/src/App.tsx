@@ -144,7 +144,8 @@ export default function App() {
               <ImageUpload onImageReady={handleImageReady} />
               <Fibo2EditForm
                 imageB64={imageB64 ?? undefined}
-                onParamsChange={(p) => setParams(p)}
+                params={params}
+                onParamsChange={setParams}
               />
               <Execution
                 params={params}

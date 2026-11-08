@@ -3,7 +3,7 @@
  * Exposición de un DTO listo para enviar al backend.
  */
 
-import { useState, useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { Bot, Type, Sparkles } from "lucide-react";
 
 export interface Fibo2EditParams {
@@ -19,49 +19,40 @@ export interface Fibo2EditParams {
 }
 
 interface Fibo2EditFormProps {
-  onParamsChange: (params: Fibo2EditParams) => void;
+  onParamsChange: (params: Fibo2EditParams | ((prev: Fibo2EditParams) => Fibo2EditParams)) => void;
   imageB64?: string;
+  params: Fibo2EditParams;
 }
 
-export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) {
-  const [params, setParams] = useState<Fibo2EditParams>({
-    prompt: "",
-    image_b64: imageB64 || undefined,
-    loras: [],
-    seed: undefined,
-    steps: 4,
-    scheduler: "euler",
-    guidance: 1.0,
-    width: 1024,
-    height: 1024,
-  });
-
-  // Sincronizar imagen entrante cuando cambia
+export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFormProps) {
+  // Sincronizar imagen entrante cuando cambia (solo image_b64, no todo params)
   useEffect(() => {
-    setParams((prev) => ({ ...prev, image_b64: imageB64 || undefined }));
-  }, [imageB64]);
+    if (imageB64) {
+      onParamsChange((prev) => ({ ...prev, image_b64: imageB64 }));
+    }
+  }, [imageB64, onParamsChange]);
 
-  // Sincronizar params con el padre cada vez que cambian
-  useEffect(() => {
-    onParamsChange(params);
-  }, [params, onParamsChange]);
+  // Wrapper para notificar cambios al padre
+  const notifyParamsChange = useCallback((updater: Fibo2EditParams | ((prev: Fibo2EditParams) => Fibo2EditParams)) => {
+    onParamsChange(updater);
+  }, [onParamsChange]);
 
   const handleLoraAdd = () => {
-    setParams((prev) => ({
+    notifyParamsChange((prev) => ({
       ...prev,
       loras: [...prev.loras, ""],
     }));
   };
 
   const handleLoraRemove = (index: number) => {
-    setParams((prev) => ({
+    notifyParamsChange((prev) => ({
       ...prev,
       loras: prev.loras.filter((_, i) => i !== index),
     }));
   };
 
   const handleLoraChange = (index: number, value: string) => {
-    setParams((prev) => {
+    notifyParamsChange((prev) => {
       const loras = [...prev.loras];
       loras[index] = value;
       return { ...prev, loras };
@@ -85,7 +76,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
           <textarea
             value={params.prompt}
             onChange={(e) =>
-              setParams((prev) => ({ ...prev, prompt: e.target.value }))
+              notifyParamsChange((prev) => ({ ...prev, prompt: e.target.value }))
             }
             rows={3}
             className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
@@ -140,7 +131,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
               type="number"
               value={params.seed ?? ""}
               onChange={(e) =>
-                setParams((prev) => ({
+                notifyParamsChange((prev) => ({
                   ...prev,
                   seed: e.target.value ? parseInt(e.target.value, 10) : undefined,
                 }))
@@ -157,7 +148,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
               min="1"
               max="100"
               onChange={(e) =>
-                setParams((prev) => ({ ...prev, steps: parseInt(e.target.value, 10) || 20 }))
+                notifyParamsChange((prev) => ({ ...prev, steps: parseInt(e.target.value, 10) || 20 }))
               }
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
@@ -167,7 +158,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
             <select
               value={params.scheduler}
               onChange={(e) =>
-                setParams((prev) => ({ ...prev, scheduler: e.target.value }))
+                notifyParamsChange((prev) => ({ ...prev, scheduler: e.target.value }))
               }
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             >
@@ -186,7 +177,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
               max="20"
               step="0.1"
               onChange={(e) =>
-                setParams((prev) => ({ ...prev, guidance: parseFloat(e.target.value) || 3.5 }))
+                notifyParamsChange((prev) => ({ ...prev, guidance: parseFloat(e.target.value) || 3.5 }))
               }
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
@@ -202,7 +193,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
               min="256"
               max="2048"
               onChange={(e) =>
-                setParams((prev) => ({ ...prev, width: parseInt(e.target.value, 10) || 1024 }))
+                notifyParamsChange((prev) => ({ ...prev, width: parseInt(e.target.value, 10) || 1024 }))
               }
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
@@ -215,7 +206,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
               min="256"
               max="2048"
               onChange={(e) =>
-                setParams((prev) => ({ ...prev, height: parseInt(e.target.value, 10) || 1024 }))
+                notifyParamsChange((prev) => ({ ...prev, height: parseInt(e.target.value, 10) || 1024 }))
               }
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
