@@ -67,7 +67,7 @@ export function ImageUpload({ onImageReady }: ImageUploadProps) {
             <img
               src={preview}
               alt="Preview"
-              className="w-48 h-48 rounded-lg object-cover border border-slate-200 shadow-sm"
+              className="max-w-64 max-h-64 rounded-lg object-contain border border-slate-200 shadow-sm bg-slate-50"
             />
             <button
               onClick={handleRemove}

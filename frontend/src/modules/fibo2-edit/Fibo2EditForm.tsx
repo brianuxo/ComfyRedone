@@ -29,9 +29,9 @@ export function Fibo2EditForm({ onParamsChange, imageB64 }: Fibo2EditFormProps) 
     image_b64: imageB64 || undefined,
     loras: [],
     seed: undefined,
-    steps: 20,
+    steps: 4,
     scheduler: "euler",
-    guidance: 3.5,
+    guidance: 1.0,
     width: 1024,
     height: 1024,
   });
