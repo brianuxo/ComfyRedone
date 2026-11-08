@@ -42,9 +42,11 @@ export function History({ onLoadImage }: HistoryProps) {
       completedTasks.sort((a, b) => {
         const aTs = Number(a.created_at) || 0;
         const bTs = Number(b.created_at) || 0;
-        return bTs - aTs; // descendente: más reciente primero
+        const diff = bTs - aTs; // descendente: más reciente primero
+        console.log(`[History] Sort compare: a=${a.task_id.slice(0,8)}(${aTs}) b=${b.task_id.slice(0,8)}(${bTs}) diff=${diff}`);
+        return diff;
       });
-      console.log("[History] Sorted:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
+      console.log("[History] Sorted array (first 5):", completedTasks.slice(0,5).map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       setTasks(completedTasks);
       await Promise.all(
         completedTasks.map(async (task) => {
