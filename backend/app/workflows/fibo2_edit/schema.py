@@ -13,7 +13,12 @@ class Fibo2EditRequest(BaseModel):
         ...,
         min_length=1,
         max_length=2000,
-        description="Instrucción de edición (prompt de FIBO 2.0 Edit)",
+        description="Instrucción de edición (prompt positivo de FIBO 2.0 Edit)",
+    )
+    negative_prompt: str = Field(
+        default="",
+        max_length=2000,
+        description="Prompt negativo (cosas a evitar en la generación)",
     )
     image_b64: Optional[str] = Field(
         None,

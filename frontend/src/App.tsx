@@ -4,6 +4,7 @@ import { WorkerStatus } from "@/modules/worker/WorkerStatus";
 import { useWorker } from "@/modules/worker/useWorker";
 import { ImageUpload } from "@/modules/image-upload/ImageUpload";
 import { Fibo2EditForm, Fibo2EditParams } from "@/modules/fibo2-edit/Fibo2EditForm";
+import { SavedPromptsPanel } from "@/modules/fibo2-edit/SavedPromptsPanel";
 import { Execution } from "@/modules/execution/Execution";
 import { History } from "@/modules/history/History";
 import { Play, Layout } from "lucide-react";
@@ -45,6 +46,7 @@ export default function App() {
   const [imageB64, setImageB64] = useState<string | null>(null);
   const [params, setParams] = useState<Fibo2EditParams>({
     prompt: "",
+    negative_prompt: "",
     image_b64: undefined,
     loras: [],
     seed: undefined,
@@ -139,7 +141,15 @@ export default function App() {
         ) : page === "home" ? (
           <Home workerOnline={workerOnline} />
         ) : page === "execution" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-1">
+              <SavedPromptsPanel
+                currentParams={params}
+                onLoadPrompt={(prompt, negative_prompt) =>
+                  setParams((prev) => ({ ...prev, prompt, negative_prompt }))
+                }
+              />
+            </div>
             <div className="lg:col-span-2 space-y-8">
               <ImageUpload onImageReady={handleImageReady} />
               <Fibo2EditForm

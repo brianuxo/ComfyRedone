@@ -1,7 +1,7 @@
-"""Almacén simple en memoria para tareas.
+"""Almacén simple en memoria para tareas y prompts.
 
-Todas las tareas viven en RAM. Nunca se escriben en disco del worker.
-Incluye TTL opcional para limpieza automática.
+Todas las tareas y prompts viven en RAM. Nunca se escriben en disco del worker.
+Incluye TTL opcional para limpieza automática de tareas.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -89,11 +89,78 @@ class TaskStore:
             return len(self._tasks)
 
 
+@dataclass
+class PromptRecord:
+    id: str
+    title: str
+    prompt: str
+    negative_prompt: str
+    created_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=time.time)
+
+
+class PromptStore:
+    """Thread-safe almacén de prompts guardados en memoria."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._prompts: Dict[str, PromptRecord] = {}
+
+    def create(self, title: str, prompt: str, negative_prompt: str = "") -> str:
+        prompt_id = str(uuid.uuid4())
+        record = PromptRecord(
+            id=prompt_id,
+            title=title,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+        )
+        with self._lock:
+            self._prompts[prompt_id] = record
+        return prompt_id
+
+    def get(self, prompt_id: str) -> Optional[PromptRecord]:
+        with self._lock:
+            return self._prompts.get(prompt_id)
+
+    def list(self) -> List[PromptRecord]:
+        with self._lock:
+            return sorted(
+                self._prompts.values(),
+                key=lambda r: r.updated_at,
+                reverse=True
+            )
+
+    def update(self, prompt_id: str, title: str, prompt: str, negative_prompt: str) -> bool:
+        with self._lock:
+            record = self._prompts.get(prompt_id)
+            if not record:
+                return False
+            record.title = title
+            record.prompt = prompt
+            record.negative_prompt = negative_prompt
+            record.updated_at = time.time()
+            return True
+
+    def delete(self, prompt_id: str) -> bool:
+        with self._lock:
+            if prompt_id in self._prompts:
+                del self._prompts[prompt_id]
+                return True
+            return False
+
+
 # Instancia global (se configura desde main.py con los settings)
 task_store: Optional[TaskStore] = None
+prompt_store: Optional[PromptStore] = None
 
 
 def init_task_store(ttl_seconds: int = 3600) -> TaskStore:
     global task_store
     task_store = TaskStore(ttl_seconds=ttl_seconds)
     return task_store
+
+
+def init_prompt_store() -> PromptStore:
+    global prompt_store
+    prompt_store = PromptStore()
+    return prompt_store

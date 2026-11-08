@@ -8,6 +8,7 @@ import { Bot, Type, Sparkles } from "lucide-react";
 
 export interface Fibo2EditParams {
   prompt: string;
+  negative_prompt: string;
   image_b64?: string;
   loras: string[];
   seed?: number;
@@ -67,7 +68,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFor
           <h3 className="text-lg font-semibold text-slate-900">Parámetros FIBO 2.0 Edit</h3>
         </div>
 
-        {/* Prompt */}
+        {/* Prompt positivo */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <Type className="w-4 h-4" />
@@ -81,6 +82,23 @@ export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFor
             rows={3}
             className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             placeholder="Ej: Cambia el estilo de la imagen a cyberpunk..."
+          />
+        </div>
+
+        {/* Prompt negativo */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <Type className="w-4 h-4" />
+            Prompt Negativo
+          </label>
+          <textarea
+            value={params.negative_prompt}
+            onChange={(e) =>
+              notifyParamsChange((prev) => ({ ...prev, negative_prompt: e.target.value }))
+            }
+            rows={2}
+            className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            placeholder="Ej: borroso, baja calidad, deformado, marcas de agua..."
           />
         </div>
 
@@ -219,6 +237,7 @@ export function Fibo2EditForm({ onParamsChange, imageB64, params }: Fibo2EditFor
         <h4 className="text-sm font-semibold text-slate-700 mb-2">Resumen de envío</h4>
         <ul className="text-xs text-slate-600 space-y-1">
           <li>Prompt: <span className="font-mono truncate block">{params.prompt || "—"}</span></li>
+          <li>Prompt Negativo: <span className="font-mono truncate block">{params.negative_prompt || "—"}</span></li>
           <li>
             Imagen de entrada:{params.image_b64 ? " ✅ cargada" : " ❌ ninguna"}
           </li>

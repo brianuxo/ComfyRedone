@@ -15,6 +15,7 @@ export interface WorkerHealth {
 
 export interface Fibo2EditParams {
   prompt: string;
+  negative_prompt: string;
   image_b64?: string;
   loras: string[];
   seed?: number;
@@ -38,4 +39,13 @@ export interface TaskResult {
   error?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface SavedPrompt {
+  id: string;
+  title: string;
+  prompt: string;
+  negative_prompt: string;
+  created_at: number;
+  updated_at: number;
 }

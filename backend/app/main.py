@@ -12,8 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.health import router as health_router
 from app.api.images import router as images_router
 from app.api.oci_debug import router as oci_debug_router
+from app.api.prompts import router as prompts_router
 from app.api.tasks import router as tasks_router
 from app.core.config import settings
+from app.db import store as store_module
 
 # Configurar logging
 logging.basicConfig(
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación."""
     logger.info("Iniciando ComfyUI SPA Backend...")
+    store_module.init_prompt_store()
     yield
     logger.info("Apagando ComfyUI SPA Backend...")
 
@@ -63,6 +66,7 @@ app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(images_router)
 app.include_router(oci_debug_router)
+app.include_router(prompts_router)
 
 
 @app.get("/", tags=["root"])

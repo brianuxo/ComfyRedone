@@ -90,4 +90,50 @@ export const api = {
     oci_online: boolean;
     error: string | null;
   }>("/health"),
+
+  /** Prompts guardados */
+  prompts: {
+    list: () =>
+      request<{
+        id: string;
+        title: string;
+        prompt: string;
+        negative_prompt: string;
+        created_at: number;
+        updated_at: number;
+      }[]>("/prompts"),
+
+    create: (data: { title: string; prompt: string; negative_prompt: string }) =>
+      request<{
+        id: string;
+        title: string;
+        prompt: string;
+        negative_prompt: string;
+        created_at: number;
+        updated_at: number;
+      }>("/prompts", { method: "POST", body: JSON.stringify(data) }),
+
+    get: (promptId: string) =>
+      request<{
+        id: string;
+        title: string;
+        prompt: string;
+        negative_prompt: string;
+        created_at: number;
+        updated_at: number;
+      }>(`/prompts/${promptId}`),
+
+    update: (promptId: string, data: { title: string; prompt: string; negative_prompt: string }) =>
+      request<{
+        id: string;
+        title: string;
+        prompt: string;
+        negative_prompt: string;
+        created_at: number;
+        updated_at: number;
+      }>(`/prompts/${promptId}`, { method: "PUT", body: JSON.stringify(data) }),
+
+    delete: (promptId: string) =>
+      request<{ ok: boolean; message: string }>(`/prompts/${promptId}`, { method: "DELETE" }),
+  },
 };
