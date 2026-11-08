@@ -39,7 +39,11 @@ export function History({ onLoadImage }: HistoryProps) {
       const completedTasks = data.filter((t) => t.status === "completed" && t.has_image);
       console.log("[History] Filtered completed:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       // Ordenar por fecha más reciente primero (created_at descendente)
-      completedTasks.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+      completedTasks.sort((a, b) => {
+        const aTs = Number(a.created_at) || 0;
+        const bTs = Number(b.created_at) || 0;
+        return bTs - aTs; // descendente: más reciente primero
+      });
       console.log("[History] Sorted:", completedTasks.map(d => ({ id: d.task_id.slice(0,8), created_at: d.created_at })));
       setTasks(completedTasks);
       await Promise.all(
