@@ -9,7 +9,7 @@ import asyncio
 # IMPORTANTE: Configurar policy ANTES de cualquier import que use asyncio
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    print("✓ WindowsSelectorEventLoopPolicy configurado")
+    print("[OK] WindowsSelectorEventLoopPolicy configurado")
 
 # Ahora importar y ejecutar uvicorn
 if __name__ == "__main__":

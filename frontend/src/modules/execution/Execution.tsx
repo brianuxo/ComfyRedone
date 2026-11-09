@@ -1,9 +1,10 @@
 /**
  * Módulo de ejecución.
- * Lanza la tarea vía API REST, escucha el resultado y muestra la imagen generada.
+ * Lanza la tarea vía API REST, escucha el resultado vía SSE (Server-Sent Events)
+ * y muestra la imagen generada. Elimina polling - streaming en tiempo real.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Play, RefreshCw } from "lucide-react";
 import { api } from "@/services/api";
 
@@ -22,12 +23,32 @@ interface ExecutionProps {
   workerOnline: boolean;
 }
 
+interface TaskEvent {
+  task_id: string;
+  status: string;
+  image_b64?: string;
+  error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export function Execution({ params, workerOnline }: ExecutionProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Cleanup EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
 
   const run = useCallback(async () => {
     if (!workerOnline) {
@@ -37,7 +58,7 @@ export function Execution({ params, workerOnline }: ExecutionProps) {
     setIsRunning(true);
     setError(null);
     setResultImage(null);
-    setStatus("ejecutando");
+    setStatus("queued");
 
     try {
       const res = await api.createTask({
@@ -53,32 +74,68 @@ export function Execution({ params, workerOnline }: ExecutionProps) {
       });
       setTaskId(res.task_id);
 
-      // Polling del resultado (en futuro reemplazar por WS dedicado)
-      const poll = async () => {
-        for (let i = 0; i < 120; i++) {
-          const task = await api.getTask(res.task_id);
+      // Conectar SSE stream en lugar de polling
+      const evt = new EventSource(`/api/tasks/${res.task_id}/stream`);
+      eventSourceRef.current = evt;
+
+      evt.onmessage = (e) => {
+        try {
+          const task: TaskEvent = JSON.parse(e.data);
           setStatus(task.status);
+          
           if (task.status === "completed") {
             setResultImage(task.image_b64 ?? null);
             setIsRunning(false);
-            return;
-          }
-          if (task.status === "failed") {
+            evt.close();
+            eventSourceRef.current = null;
+          } else if (task.status === "failed" || task.status === "cancelled" || task.status === "timeout") {
             setError(task.error ?? "Error desconocido");
             setIsRunning(false);
-            return;
+            evt.close();
+            eventSourceRef.current = null;
           }
-          await new Promise((r) => setTimeout(r, 2000));
+        } catch (parseErr) {
+          console.error("Error parsing SSE message:", parseErr);
         }
-        setError("Tiempo de espera agotado");
-        setIsRunning(false);
       };
-      poll();
+
+      evt.onerror = () => {
+        console.warn("SSE connection error, fallback to polling...");
+        evt.close();
+        eventSourceRef.current = null;
+        // Fallback: polling tradicional si SSE falla
+        fallbackPoll(res.task_id);
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al ejecutar");
       setIsRunning(false);
     }
   }, [params, workerOnline]);
+
+  const fallbackPoll = async (taskId: string) => {
+    setStatus("polling...");
+    for (let i = 0; i < 120; i++) {
+      try {
+        const task = await api.getTask(taskId);
+        setStatus(task.status);
+        if (task.status === "completed") {
+          setResultImage(task.image_b64 ?? null);
+          setIsRunning(false);
+          return;
+        }
+        if (task.status === "failed") {
+          setError(task.error ?? "Error desconocido");
+          setIsRunning(false);
+          return;
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    setError("Tiempo de espera agotado");
+    setIsRunning(false);
+  };
 
   return (
     <div className="space-y-6">

@@ -11,11 +11,14 @@ El backend NO se conecta a ComfyUI directamente. Todo fluye a través de OCI:
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
 from app.db import store as store_module
@@ -269,6 +272,92 @@ async def get_task(task_id: str) -> Dict[str, Any]:
         "updated_at": record.updated_at,
         "source": "cache",
     }
+
+
+@router.get("/{task_id}/stream", summary="Stream de estado via Server-Sent Events (SSE)")
+async def stream_task_status(task_id: str):
+    """
+    Endpoint SSE para recibir actualizaciones de estado en tiempo real.
+    Elimina la necesidad de polling en el frontend.
+    
+    Eventos:
+    - data: {task_id, status, image_b64?, error?, ...}
+    
+    Conexión se cierra automáticamente al llegar a estado final (completed/failed/cancelled).
+    """
+    _ensure_store()
+    
+    # Verificar que la tarea existe
+    record = store_module.task_store.get(task_id)
+    if not record:
+        # Verificar en OCI
+        oci_result = _resolve_task_from_oci(task_id)
+        if not oci_result:
+            raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    
+    async def event_generator():
+        last_status = None
+        last_image_b64 = None
+        max_iterations = 600  # 5 minutos máx (600 * 0.5s)
+        iteration = 0
+        
+        while iteration < max_iterations:
+            # Obtener estado actual
+            current_record = store_module.task_store.get(task_id)
+            
+            if current_record:
+                status = current_record.status
+                image_b64 = current_record.image_b64
+                error = current_record.error
+            else:
+                # Consultar OCI
+                oci_result = _resolve_task_from_oci(task_id)
+                if oci_result:
+                    status = oci_result["status"]
+                    image_b64 = oci_result.get("image_b64")
+                    error = oci_result.get("error")
+                else:
+                    status = "unknown"
+                    image_b64 = None
+                    error = None
+            
+            # Solo enviar si hubo cambio de estado o imagen
+            if status != last_status or image_b64 != last_image_b64:
+                payload = {
+                    "task_id": task_id,
+                    "status": status,
+                    "created_at": current_record.created_at if current_record else oci_result.get("created_at", "") if oci_result else "",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if image_b64:
+                    payload["image_b64"] = image_b64
+                if error:
+                    payload["error"] = error
+                
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                last_status = status
+                last_image_b64 = image_b64
+                
+                # Si es estado final, cerrar conexión
+                if status in ("completed", "failed", "cancelled"):
+                    break
+            
+            await asyncio.sleep(0.5)  # 500ms - mucho más rápido que polling 2s
+            iteration += 1
+        
+        # Timeout - enviar estado final si no se completó
+        if iteration >= max_iterations:
+            yield f"data: {json.dumps({'task_id': task_id, 'status': 'timeout', 'error': 'Tiempo de espera agotado en stream'})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Deshabilitar buffering en nginx
+        }
+    )
 
 
 @router.delete("/{task_id}", summary="Cancelar una tarea (marca en OCI queue/cancelled)")
