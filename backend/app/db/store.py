@@ -218,7 +218,7 @@ def init_task_store(ttl_seconds: int = 3600) -> TaskStore:
     return task_store
 
 
-def init_prompt_store() -> PromptStore:
+def init_prompt_store(file_path: str | None = None) -> PromptStore:
     global prompt_store
-    prompt_store = PromptStore()
+    prompt_store = PromptStore(file_path)
     return prompt_store
