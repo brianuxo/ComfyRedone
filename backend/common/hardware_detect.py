@@ -40,9 +40,9 @@ def build_config_for_environment(env: Optional[str] = None) -> HardwareConfig:
     if env == "kaggle":
         return HardwareConfig(
             environment="kaggle",
-            gpu_count=gpu_count or 2,
+            gpu_count=gpu_count or 1,
             vram_per_gpu_gb=vram_per_gpu or 16,
-            gpu_names=gpu_names or ["Tesla T4", "Tesla T4"],
+            gpu_names=gpu_names or ["Tesla T4"],
             cpu_cores=cpu_physical or 4,
             cpu_threads=cpu_logical or 4,
             system_ram_gb=system_ram_gb or 30,
@@ -59,13 +59,13 @@ def build_config_for_environment(env: Optional[str] = None) -> HardwareConfig:
     elif env == "colab":
         return HardwareConfig(
             environment="colab",
-            gpu_count=gpu_count or 2,
+            gpu_count=gpu_count or 1,
             vram_per_gpu_gb=vram_per_gpu or 16,
-            gpu_names=gpu_names or ["Tesla T4", "Tesla T4"],
+            gpu_names=gpu_names or ["Tesla T4"],
             cpu_cores=cpu_physical or 1,
             cpu_threads=cpu_logical or 2,
             system_ram_gb=system_ram_gb or 12,
-            ram_disk_max_gb=4,
+            ram_disk_max_gb=3,
             poll_interval_seconds=10,
             heartbeat_interval_seconds=30,
             max_models_in_vram=1,
