@@ -65,6 +65,22 @@ export const api = {
     { method: "POST", body: JSON.stringify(body) }
   ),
 
+  /** Lanzar una tarea Moss Image (text-to-image) → sube a OCI queue/pending */
+  createMossTask: (body: {
+    prompt: string;
+    negative_prompt?: string;
+    loras?: string[];
+    seed?: number;
+    steps?: number;
+    scheduler?: string;
+    guidance?: number;
+    width?: number;
+    height?: number;
+  }) => request<{ task_id: string; status: string; created_at: string }>(
+    "/tasks/moss",
+    { method: "POST", body: JSON.stringify(body) }
+  ),
+
   /** Consultar estado/resultado de una tarea → lee de OCI results/ */
   getTask: (taskId: string) =>
     request<{

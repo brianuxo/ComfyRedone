@@ -1,15 +1,19 @@
-"""Almacén simple en memoria para tareas y prompts.
+"""
+Almacen simple en memoria para tareas y prompts.
 
 Todas las tareas y prompts viven en RAM. Nunca se escriben en disco del worker.
-Incluye TTL opcional para limpieza automática de tareas.
+Los prompts guardados persisten en un archivo JSON local (nunca en la API/in-memory).
+Incluye TTL opcional para limpieza automatica de tareas.
 """
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 
 
@@ -25,7 +29,7 @@ class TaskRecord:
 
 
 class TaskStore:
-    """Thread-safe almacén de tareas en memoria."""
+    """Thread-safe almacen de tareas en memoria."""
 
     def __init__(self, ttl_seconds: int = 3600) -> None:
         self._lock = threading.RLock()
@@ -100,11 +104,62 @@ class PromptRecord:
 
 
 class PromptStore:
-    """Thread-safe almacén de prompts guardados en memoria."""
+    """Thread-safe storage of saved prompts in memory with JSON file persistence."""
 
-    def __init__(self) -> None:
+    def __init__(self, file_path: Optional[str] = None) -> None:
         self._lock = threading.RLock()
         self._prompts: Dict[str, PromptRecord] = {}
+        self.file_path = Path(file_path) if file_path else Path(__file__).resolve().parents[2] / "prompts.json"
+        self._load()
+
+    def _load(self) -> None:
+        """Load prompts from JSON file if it exists."""
+        if self.file_path.exists():
+            try:
+                with open(self.file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                prompts_data = data.get("prompts", data) if isinstance(data, dict) else data
+                if isinstance(prompts_data, list):
+                    for p in prompts_data:
+                        if isinstance(p, dict) and p.get("id") and p.get("title") and p.get("prompt"):
+                            self._prompts[p["id"]] = PromptRecord(
+                                id=p["id"],
+                                title=p["title"],
+                                prompt=p["prompt"],
+                                negative_prompt=p.get("negative_prompt", ""),
+                                created_at=float(p.get("created_at", time.time())),
+                                updated_at=float(p.get("updated_at", time.time())),
+                            )
+            except Exception as e:
+                print(f"[PromptStore] Error loading prompts from {self.file_path}: {e}")
+                self._prompts = {}
+        else:
+            self._prompts = {}
+
+    def _save(self) -> None:
+        """Persist prompts to JSON file."""
+        try:
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "prompts": [
+                    {
+                        "id": r.id,
+                        "title": r.title,
+                        "prompt": r.prompt,
+                        "negative_prompt": r.negative_prompt,
+                        "created_at": r.created_at,
+                        "updated_at": r.updated_at,
+                    }
+                    for r in sorted(self._prompts.values(), key=lambda x: x.updated_at, reverse=True)
+                ]
+            }
+            tmp_path = self.file_path.with_suffix(self.file_path.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            import os as _os
+            _os.replace(tmp_path, self.file_path)
+        except Exception as e:
+            print(f"[PromptStore] Error persisting prompts to {self.file_path}: {e}")
 
     def create(self, title: str, prompt: str, negative_prompt: str = "") -> str:
         prompt_id = str(uuid.uuid4())
@@ -116,6 +171,7 @@ class PromptStore:
         )
         with self._lock:
             self._prompts[prompt_id] = record
+            self._save()
         return prompt_id
 
     def get(self, prompt_id: str) -> Optional[PromptRecord]:
@@ -139,17 +195,19 @@ class PromptStore:
             record.prompt = prompt
             record.negative_prompt = negative_prompt
             record.updated_at = time.time()
+            self._save()
             return True
 
     def delete(self, prompt_id: str) -> bool:
         with self._lock:
             if prompt_id in self._prompts:
                 del self._prompts[prompt_id]
+                self._save()
                 return True
             return False
 
 
-# Instancia global (se configura desde main.py con los settings)
+# Global instances (configured from main.py settings)
 task_store: Optional[TaskStore] = None
 prompt_store: Optional[PromptStore] = None
 

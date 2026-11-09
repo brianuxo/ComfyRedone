@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación."""
     logger.info("Iniciando ComfyUI SPA Backend...")
-    store_module.init_prompt_store()
+    store_module.init_prompt_store(settings.PROMPTS_FILE_PATH)
     yield
     logger.info("Apagando ComfyUI SPA Backend...")
 

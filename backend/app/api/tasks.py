@@ -7,6 +7,11 @@ El backend NO se conecta a ComfyUI directamente. Todo fluye a través de OCI:
   - DELETE /api/tasks/{id} -> marca cancelado en OCI queue/cancelled/{task_id}.json
   - POST /api/tasks/txt2img  -> crea tarea txt2img (generación desde cero)
   - POST /api/tasks/edit     -> crea tarea edit (con imagen de entrada)
+
+SINCRONIZACIÓN OCI → CACHÉ LOCAL:
+  Cuando una tarea está en estado "queued" o "running" en el caché local,
+  el endpoint GET consulta OCI para verificar si el daemon ya completó
+  la ejecución y subió el resultado a results/{task_id}/.
 """
 
 from __future__ import annotations
@@ -33,6 +38,8 @@ from app.workflows.fibo2_edit.oci_payload import (
 from app.workflows.fibo2_edit.schema import Fibo2EditRequest, Fibo2EditResponse
 from app.workflows.fibo2_txt2img.oci_payload import build_oci_payload as build_oci_payload_txt2img
 from app.workflows.fibo2_txt2img.schema import Fibo2Txt2ImgRequest, Fibo2Txt2ImgResponse
+from app.workflows.moss_image import build_oci_payload as build_oci_payload_moss
+from app.workflows.fibo2_txt2img.schema import MossImageRequest, MossImageResponse
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -212,6 +219,47 @@ async def create_txt2img_task(request: Fibo2Txt2ImgRequest) -> Fibo2Txt2ImgRespo
     )
 
 
+@router.post(
+    "/moss",
+    response_model=MossImageResponse,
+    status_code=201,
+    summary="Lanzar ejecución Moss Image (text-to-image)",
+)
+async def create_moss_task(request: MossImageRequest) -> MossImageResponse:
+    """
+    Recibe los parámetros del usuario, construye el workflow JSON de Moss Image
+    (generación desde cero, SIN imagen de entrada), lo valida y lo sube como objeto
+    a OCI queue/pending/{task_id}.json.
+
+    El daemon de ComfyUI en Kaggle/Colab polléa este prefijo, ejecuta el workflow
+    y sube el resultado a OCI results/{task_id}/.
+
+    Nunca se conecta a ComfyUI directamente. Nunca escribe en disco del worker.
+    """
+    _ensure_store()
+
+    task_id_param = getattr(request, "task_id", None)
+    payload = build_oci_payload_moss(request.dict(), task_id=task_id_param)
+    task_id = payload["task_id"]
+
+    # Registrar en almacén local (caché rápido) con el mismo task_id de OCI
+    store_module.task_store.create(payload["workflow"], task_id=task_id)
+
+    # Subir a OCI queue/pending
+    success = oci_client.put_object_json(queue_key(task_id), payload)
+    if not success:
+        store_module.task_store.update_status(task_id, "failed", error="No se pudo subir la tarea a OCI")
+        raise HTTPException(status_code=500, detail="Error subiendo tarea a OCI")
+
+    store_module.task_store.update_status(task_id, "queued")
+
+    return MossImageResponse(
+        task_id=task_id,
+        status="queued",
+        created_at=payload["created_at"],
+    )
+
+
 @router.get("/{task_id}", summary="Consultar estado y resultado de una tarea (desde OCI)")
 async def get_task(task_id: str) -> Dict[str, Any]:
     """
@@ -309,6 +357,21 @@ async def stream_task_status(task_id: str):
                 status = current_record.status
                 image_b64 = current_record.image_b64
                 error = current_record.error
+
+                # Si el estado no es definitivo O faltó la imagen, consultar OCI
+                if status in ("queued", "running") or (status == "completed" and not image_b64):
+                    oci_result = _resolve_task_from_oci(task_id)
+                    if oci_result:
+                        status = oci_result["status"]
+                        image_b64 = oci_result.get("image_b64") or image_b64
+                        error = oci_result.get("error") or error
+                        # Sincronizar con el caché local
+                        store_module.task_store.update_status(
+                            task_id,
+                            status,
+                            image_b64=image_b64,
+                            error=error,
+                        )
             else:
                 # Consultar OCI
                 oci_result = _resolve_task_from_oci(task_id)

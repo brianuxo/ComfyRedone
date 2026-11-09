@@ -66,6 +66,9 @@ class Settings:
     COMFY_WS_TIMEOUT: int = int(os.getenv("COMFY_WS_TIMEOUT", "120"))
     COMFY_EXECUTION_TIMEOUT: int = int(os.getenv("COMFY_EXECUTION_TIMEOUT", "3600"))
 
+    # --- Prompts JSON file storage ---
+    PROMPTS_FILE_PATH: str = os.getenv("PROMPTS_FILE_PATH", "data/prompts.json")
+
 
 @lru_cache()
 def get_settings() -> Settings:

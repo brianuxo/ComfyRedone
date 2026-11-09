@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Home } from "./pages/Home";
+import { MossImagePage } from "./pages/MossImage";
 import { WorkerStatus } from "@/modules/worker/WorkerStatus";
 import { useWorker } from "@/modules/worker/useWorker";
 import { ImageUpload } from "@/modules/image-upload/ImageUpload";
@@ -7,11 +8,11 @@ import { Fibo2EditForm, Fibo2EditParams } from "@/modules/fibo2-edit/Fibo2EditFo
 import { SavedPromptsPanel } from "@/modules/fibo2-edit/SavedPromptsPanel";
 import { Execution } from "@/modules/execution/Execution";
 import { History } from "@/modules/history/History";
-import { Play, Layout } from "lucide-react";
+import { Play, Layout, Sparkles } from "lucide-react";
 
 import { calculateFiboDimensions } from "@/lib/imageUtils";
 
-type Page = "home" | "execution" | "history";
+type Page = "home" | "execution" | "history" | "moss";
 
 const STORAGE_KEY = "comfy-spa-draft";
 
@@ -142,6 +143,16 @@ export default function App() {
                 <Layout className="w-4 h-4 mr-2" /> Inicio
               </button>
               <button
+                onClick={() => setPage("moss")}
+                className={`px-3 py-2 text-sm font-medium rounded-md transition ${
+                  page === "moss"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Sparkles className="w-4 h-4 mr-2" /> Moss Image
+              </button>
+              <button
                 onClick={() => setPage("execution")}
                 className={`px-3 py-2 text-sm font-medium rounded-md transition ${
                   page === "execution"
@@ -149,7 +160,7 @@ export default function App() {
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                <Play className="w-4 h-4 mr-2" /> Ejecutar
+                <Play className="w-4 h-4 mr-2" /> fibo 2.0 Turbo
               </button>
               <button
                 onClick={() => setPage("history")}
@@ -174,6 +185,8 @@ export default function App() {
           </div>
         ) : page === "home" ? (
           <Home workerOnline={workerOnline} />
+        ) : page === "moss" ? (
+          <MossImagePage />
         ) : page === "execution" ? (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             <div className="lg:col-span-1">
