@@ -344,85 +344,72 @@ async def stream_task_status(task_id: str):
             raise HTTPException(status_code=404, detail="Tarea no encontrada")
     
     async def event_generator():
-        last_status = None
-        last_image_b64 = None
-        max_iterations = 600  # 5 minutos máx (600 * 0.5s)
-        iteration = 0
-        
-        while iteration < max_iterations:
-            # Obtener estado actual
-            current_record = store_module.task_store.get(task_id)
-            
-            if current_record:
-                status = current_record.status
-                image_b64 = current_record.image_b64
-                error = current_record.error
+        # Obtener estado actual una sólo vez (sin bucle de polling que bloquee el event loop)
+        current_record = store_module.task_store.get(task_id)
+        oci_result = None
 
-                # Si el estado no es definitivo O faltó la imagen, consultar OCI
-                if status in ("queued", "running") or (status == "completed" and not image_b64):
-                    oci_result = _resolve_task_from_oci(task_id)
-                    if oci_result:
-                        status = oci_result["status"]
-                        image_b64 = oci_result.get("image_b64") or image_b64
-                        error = oci_result.get("error") or error
-                        # Sincronizar con el caché local
-                        store_module.task_store.update_status(
-                            task_id,
-                            status,
-                            image_b64=image_b64,
-                            error=error,
-                        )
-            else:
-                # Consultar OCI
+        if current_record:
+            status = current_record.status
+            image_b64 = current_record.image_b64
+            error = current_record.error
+            created_at = current_record.created_at
+            updated_at = current_record.updated_at
+
+            # Si el estado no es definitivo O faltó la imagen, consultar OCI una sólo vez
+            if status in ("queued", "running") or (status == "completed" and not image_b64):
                 oci_result = _resolve_task_from_oci(task_id)
                 if oci_result:
                     status = oci_result["status"]
-                    image_b64 = oci_result.get("image_b64")
-                    error = oci_result.get("error")
-                else:
-                    status = "unknown"
-                    image_b64 = None
-                    error = None
-            
-            # Solo enviar si hubo cambio de estado o imagen
-            if status != last_status or image_b64 != last_image_b64:
-                payload = {
-                    "task_id": task_id,
-                    "status": status,
-                    "created_at": current_record.created_at if current_record else oci_result.get("created_at", "") if oci_result else "",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-                if image_b64:
-                    payload["image_b64"] = image_b64
-                if error:
-                    payload["error"] = error
-                
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-                last_status = status
-                last_image_b64 = image_b64
-                
-                # Si es estado final, cerrar conexión
-                if status in ("completed", "failed", "cancelled"):
-                    break
-            
-            await asyncio.sleep(0.5)  # 500ms - mucho más rápido que polling 2s
-            iteration += 1
-        
-        # Timeout - enviar estado final si no se completó
-        if iteration >= max_iterations:
-            yield f"data: {json.dumps({'task_id': task_id, 'status': 'timeout', 'error': 'Tiempo de espera agotado en stream'})}\n\n"
-    
+                    image_b64 = oci_result.get("image_b64") or image_b64
+                    error = oci_result.get("error") or error
+                    created_at = oci_result.get("created_at", created_at)
+                    updated_at = oci_result.get("updated_at", updated_at)
+                    # Sincronizar con el caché local para peticiones futuras
+                    store_module.task_store.update_status(
+                        task_id,
+                        status,
+                        image_b64=image_b64,
+                        error=error,
+                    )
+        else:
+            # No existe en caché local, consultar OCI
+            oci_result = _resolve_task_from_oci(task_id)
+            if oci_result:
+                status = oci_result["status"]
+                image_b64 = oci_result.get("image_b64")
+                error = oci_result.get("error")
+                created_at = oci_result.get("created_at", "")
+                updated_at = oci_result.get("updated_at", "")
+            else:
+                status = "unknown"
+                image_b64 = None
+                error = None
+                created_at = ""
+                updated_at = ""
+
+        # Enviar evento con el estado actual
+        payload = {
+            "task_id": task_id,
+            "status": status,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
+        if image_b64:
+            payload["image_b64"] = image_b64
+        if error:
+            payload["error"] = error
+
+        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Deshabilitar buffering en nginx
+            "Connection": "close",
+            "X-Accel-Buffering": "no",
         }
     )
-
-
 @router.delete("/{task_id}", summary="Cancelar una tarea (marca en OCI queue/cancelled)")
 async def delete_task(task_id: str) -> Dict[str, str]:
     """
